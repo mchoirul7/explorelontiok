@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="Rumah Lontiok AR, a premium cultural learning prototype for architecture, airflow, and climate exploration."
+    />
+    <title>Rumah Lontiok AR</title>
+    <link rel="preload" href="assets/rumah-lontiok-hero.png" as="image" />
+    <link rel="stylesheet" href="src/styles.css" />
+  </head>
+  <body>
+    <main id="app" class="app-shell">
+      <video
+        id="cameraFeed"
+        class="camera-feed"
+        autoplay
+        muted
+        playsinline
+        aria-label="AR camera view"
+      ></video>
+      <div id="sceneMount" class="scene-mount" aria-label="Rumah Lontiok AR scene"></div>
+      <div id="uiRoot" class="ui-root"></div>
+    </main>
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
