@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --ink: #15110d;
   --ink-soft: rgba(21, 17, 13, 0.72);
   --ivory: #f4efe4;
@@ -1651,7 +1651,7 @@ svg {
   position: relative;
   z-index: 1;
   display: grid;
-  /* minmax(0, …) stops a long unbreakable word from blowing the track out
+  /* minmax(0, â€¦) stops a long unbreakable word from blowing the track out
      past the shell and over the neighbouring card. */
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
   gap: clamp(16px, 3vw, 40px);
@@ -2629,16 +2629,18 @@ svg {
   animation: targetLockPulse 1500ms var(--ease-out) 2;
 }
 
+/* Sits under the model's own base line, which model3d measures every frame. */
 .model-shadow {
   position: absolute;
-  left: 50%;
-  top: 72%;
-  width: min(58vw, 430px);
-  height: 46px;
+  left: var(--house-left);
+  right: var(--house-right);
+  top: calc(100% - var(--house-bottom) - 3.5%);
+  height: 7%;
+  z-index: 3;
   border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.36), transparent 68%);
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.42), transparent 68%);
   opacity: 0;
-  transform: translateX(-50%);
+  pointer-events: none;
   transition: opacity 900ms var(--ease-out);
 }
 
@@ -2650,16 +2652,43 @@ svg {
   position: absolute;
   left: 50%;
   top: 52%;
-  width: min(72vw, 520px);
+  width: min(88vw, 640px);
+  /* airflow-field.js maps its flow into this box, and assumes this ratio. */
   aspect-ratio: 1.24;
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.85);
-  transform-style: preserve-3d;
-  filter: drop-shadow(0 24px 34px rgba(0, 0, 0, 0.36));
+  /* No CSS filter here on purpose: it would force a full-frame filter pass
+     over the live WebGL canvas. Layer tinting happens in model3d instead. */
   transition:
     opacity 900ms var(--ease-out),
-    transform 1100ms var(--ease-out),
-    filter 700ms var(--ease-out);
+    transform 1100ms var(--ease-out);
+}
+
+.model-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+}
+
+.model-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  touch-action: none;
+  pointer-events: auto;
+  transition: opacity 620ms var(--ease-out);
+}
+
+.model-canvas.is-live {
+  opacity: 1;
+}
+
+/* Until the glTF has finished loading there is nothing to show but the
+   tracking plane, so hold the shadow back too. */
+.scene-mount:not(.model-ready) .model-shadow {
+  opacity: 0;
 }
 
 .target-found .house-model {
@@ -2669,7 +2698,6 @@ svg {
 
 .scene-mount.is-focused .house-model {
   opacity: 0.82;
-  filter: saturate(0.82) contrast(0.94) drop-shadow(0 20px 28px rgba(0, 0, 0, 0.28));
 }
 
 .scene-mount.is-focused .tracking-plane,
@@ -2685,22 +2713,24 @@ svg {
 }
 
 .mode-air .house-model {
-  opacity: 0.78;
-  filter: saturate(0.75) drop-shadow(0 24px 34px rgba(0, 0, 0, 0.36));
+  opacity: 0.88;
 }
 
-.layer-architecture .house-model,
-.layer-airflow .house-model,
-.layer-climate .house-model,
-.layer-dailyLife .house-model,
-.layer-wisdom .house-model {
-  filter: saturate(0.76) contrast(0.96) drop-shadow(0 24px 34px rgba(0, 0, 0, 0.36));
+/* Fallbacks apply until model3d publishes the measured silhouette. */
+.house-model {
+  --house-left: 4%;
+  --house-right: 8%;
+  --house-top: 22%;
+  --house-bottom: 22%;
+  --ridge-cx: 50%;
+  --eave-cy: 36%;
+  --wall-cy: 62%;
 }
 
 .xray-grid,
 .shade-veil {
   position: absolute;
-  inset: 6% 8% 18%;
+  inset: var(--house-top) var(--house-right) var(--house-bottom) var(--house-left);
   z-index: 7;
   opacity: 0;
   pointer-events: none;
@@ -2714,9 +2744,16 @@ svg {
   mix-blend-mode: screen;
 }
 
+/* The shade the roof casts: ridge down to the eaves, then in to the wall line. */
 .shade-veil {
-  background: linear-gradient(180deg, rgba(18, 15, 12, 0.44), rgba(18, 15, 12, 0.04) 64%);
-  clip-path: polygon(8% 18%, 50% 2%, 92% 18%, 76% 52%, 22% 52%);
+  background: linear-gradient(180deg, rgba(18, 15, 12, 0.46), rgba(18, 15, 12, 0.04) 72%);
+  clip-path: polygon(
+    0 var(--eave-cy),
+    var(--ridge-cx) 0,
+    100% var(--eave-cy),
+    88% var(--wall-cy),
+    12% var(--wall-cy)
+  );
 }
 
 .layer-architecture .xray-grid,
@@ -2734,197 +2771,9 @@ svg {
   opacity: 0.24;
 }
 
-.house-part {
-  position: absolute;
-  transform: translate3d(0, 0, 0);
-  transition:
-    transform 880ms var(--ease-out),
-    opacity 620ms var(--ease-out),
-    filter 620ms var(--ease-out);
-  transition-delay: 0ms;
-}
-
-.mode-structure .house-part {
-  transform: translate3d(var(--part-x), var(--part-y), 0);
-  transition-delay: var(--part-delay);
-}
-
-.roof {
-  left: 7%;
-  top: 3%;
-  width: 86%;
-  height: 43%;
-  z-index: 4;
-}
-
-.roof-plane {
-  position: absolute;
-  inset: 0;
-  background:
-    repeating-linear-gradient(108deg, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px 9px),
-    linear-gradient(138deg, #7a4a2d, #3f2518 64%, #21130f);
-  clip-path: polygon(5% 82%, 49% 8%, 96% 82%, 81% 94%, 50% 35%, 18% 94%);
-  box-shadow: inset 0 -18px 26px rgba(0, 0, 0, 0.22);
-}
-
-.roof-plane-b {
-  opacity: 0.72;
-  transform: translate(3%, 6%) scale(0.94);
-  filter: brightness(0.82);
-}
-
-.roof-ridge {
-  position: absolute;
-  left: 46%;
-  top: 8%;
-  width: 8%;
-  height: 88%;
-  border-radius: 60% 60% 18% 18%;
-  background: linear-gradient(#d0a06d, #59301f);
-  transform: rotate(-3deg);
-}
-
-.wall {
-  top: 38%;
-  height: 27%;
-  background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 18px),
-    linear-gradient(160deg, #875430, #4c2a1d);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 -18px 26px rgba(0, 0, 0, 0.18);
-}
-
-.front-wall {
-  left: 17%;
-  width: 48%;
-  z-index: 3;
-  clip-path: polygon(0 5%, 100% 0, 94% 100%, 4% 96%);
-}
-
-.side-walls {
-  left: 58%;
-  width: 27%;
-  z-index: 2;
-  filter: brightness(0.78);
-  clip-path: polygon(0 0, 100% 16%, 92% 100%, 0 100%);
-}
-
-.window,
-.door,
-.timber-line {
-  position: absolute;
-  display: block;
-}
-
-.window {
-  top: 28%;
-  width: 13%;
-  height: 36%;
-  background: linear-gradient(180deg, rgba(12, 8, 5, 0.9), rgba(24, 16, 10, 0.8));
-  border: 2px solid rgba(194, 126, 68, 0.6);
-}
-
-.window-a {
-  left: 14%;
-}
-
-.window-b {
-  left: 36%;
-}
-
-.window-c {
-  left: 42%;
-  width: 28%;
-}
-
-.door {
-  left: 65%;
-  top: 22%;
-  width: 16%;
-  height: 66%;
-  border: 2px solid rgba(194, 126, 68, 0.64);
-  background: rgba(24, 16, 10, 0.62);
-}
-
-.timber-line {
-  left: 6%;
-  right: 8%;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.line-a {
-  top: 20%;
-}
-
-.line-b,
-.line-c {
-  bottom: 18%;
-}
-
-.floor {
-  left: 14%;
-  top: 63%;
-  width: 72%;
-  height: 10%;
-  z-index: 3;
-  background: linear-gradient(180deg, #a96b3b, #5c321f);
-  clip-path: polygon(4% 0, 100% 8%, 94% 100%, 0 88%);
-}
-
-.floor-beam {
-  position: absolute;
-  left: 5%;
-  right: 5%;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.beam-a {
-  top: 28%;
-}
-
-.beam-b {
-  top: 65%;
-}
-
-.foundation {
-  left: 18%;
-  top: 70%;
-  width: 66%;
-  height: 27%;
-  z-index: 1;
-}
-
-.post {
-  position: absolute;
-  top: 0;
-  width: 7%;
-  height: 100%;
-  background: linear-gradient(90deg, #4d2a1a, #9d653c, #3c2116);
-  transform: skewX(-3deg);
-}
-
-.post-a {
-  left: 8%;
-}
-
-.post-b {
-  left: 33%;
-}
-
-.post-c {
-  left: 58%;
-}
-
-.post-d {
-  left: 83%;
-}
-
 .thermal-overlay {
   position: absolute;
-  inset: 8% 8% 18%;
+  inset: var(--house-top) var(--house-right) var(--house-bottom) var(--house-left);
   z-index: 5;
   border-radius: 26% 26% 10% 10%;
   background:
@@ -2947,15 +2796,6 @@ svg {
 
 .shade-short.thermal-on .thermal-overlay {
   opacity: 0.72;
-}
-
-.floor-low .foundation {
-  transform: translate3d(var(--part-x), calc(var(--part-y) - 26px), 0) scaleY(0.72);
-  transform-origin: top;
-}
-
-.floor-low .floor {
-  transform: translate3d(var(--part-x), calc(var(--part-y) + 16px), 0);
 }
 
 .floor-low .model-shadow {
@@ -4107,11 +3947,11 @@ svg {
   .house-model {
     left: 38%;
     top: 54%;
-    width: min(54vw, 500px);
+    width: min(62vw, 560px);
   }
 
-  .tracking-plane,
-  .model-shadow {
+  /* .model-shadow now lives inside .house-model and moves with it. */
+  .tracking-plane {
     left: 38%;
   }
 
@@ -4240,7 +4080,7 @@ svg {
 
 /* ==========================================================================
    Quiz responsive scale
-   Kept in one place and ordered widest → narrowest so each breakpoint can
+   Kept in one place and ordered widest â†’ narrowest so each breakpoint can
    override the one before it. Earlier blocks in this file are not in width
    order, which is why the quiz rules live here instead of being scattered.
    ========================================================================== */

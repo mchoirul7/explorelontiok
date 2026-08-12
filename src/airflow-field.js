@@ -23,18 +23,32 @@ const ROWS = 46;
 const CELL_W = (X_MAX - X_MIN) / (COLS - 1);
 const CELL_H = (Y_MAX - Y_MIN) / (ROWS - 1);
 
-// House landmarks, read off styles.css so the flow lands on real geometry.
-const RIDGE = [0.491, 0.064];
-const EAVE_L = [0.113, 0.383];
-const EAVE_R = [0.896, 0.383];
-const WALL = { x0: 0.17, x1: 0.85, y0: 0.38, y1: 0.65 };
-const SLAB = { x0: 0.14, x1: 0.86, y0: 0.63, y1: 0.73 };
-const OPENINGS = [
-  { x: 0.268, y: 0.505, w: 0.062, h: 0.097 }, // window-a
-  { x: 0.374, y: 0.505, w: 0.062, h: 0.097 }, // window-b
-  { x: 0.52, y: 0.528, w: 0.077, h: 0.179 }, // door
-  { x: 0.731, y: 0.505, w: 0.076, h: 0.097 }, // window-c
-];
+// Landmarks of the house silhouette in CSS space. model3d.js measures these
+// from the loaded glTF every time the model turns; this is only the fallback
+// used before the model has been framed.
+export const DEFAULT_GEOMETRY = {
+  ridge: [0.5, 0.06],
+  eaveL: [0.08, 0.42],
+  eaveR: [0.92, 0.42],
+  wall: { x0: 0.13, x1: 0.87, y0: 0.4, y1: 0.66 },
+  kolong: { x0: 0.13, x1: 0.87, y0: 0.68, y1: 0.94 },
+};
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// Four evenly spread openings along the facade. The glTF has no named windows,
+// so they are placed proportionally rather than measured.
+function openingsOf(geo) {
+  const { wall } = geo;
+  const w = wall.x1 - wall.x0;
+  const h = wall.y1 - wall.y0;
+  return [0.2, 0.38, 0.58, 0.8].map((at, index) => ({
+    x: wall.x0 + w * at,
+    y: wall.y0 + h * (index === 2 ? 0.62 : 0.48),
+    w: w * (index === 2 ? 0.1 : 0.075),
+    h: h * (index === 2 ? 0.72 : 0.42),
+  }));
+}
 
 const OPENING_SCALE = { low: 0.62, medium: 1, wide: 1.44 };
 const SPEED_SCALE = { low: 0.68, medium: 1, wide: 1.32 };
@@ -48,44 +62,48 @@ const STAGE_TINT = [
   [231, 175, 112],
 ];
 
-function kolong(floorHeight) {
+// A low floor squeezes the under-house channel toward the ground and slows it.
+function kolong(floorHeight, geo) {
+  const band = geo.kolong;
   return floorHeight === "low"
-    ? { y: 0.895, speed: 0.72 }
-    : { y: 0.855, speed: 1 };
+    ? { y: lerp(band.y0, band.y1, 0.72), speed: 0.72 }
+    : { y: lerp(band.y0, band.y1, 0.5), speed: 1 };
 }
 
 // Each guide: pts in CSS space, radius = how far its influence reaches,
 // speed = metric units per second along it, weight = relative authority.
-function buildGuides(stage, floorHeight) {
-  const k = kolong(floorHeight);
+// Every point is expressed relative to the measured silhouette, so the flow
+// re-registers itself whenever the model is turned or reframed.
+function buildGuides(stage, floorHeight, geo) {
+  const k = kolong(floorHeight, geo);
+  const { wall, ridge, eaveL, eaveR } = geo;
+  const openings = openingsOf(geo);
+  const wx = (t) => lerp(wall.x0, wall.x1, t);
+  const wy = (t) => lerp(wall.y0, wall.y1, t);
+  const eaveY = (eaveL[1] + eaveR[1]) / 2;
+
+  // The under-house channel, shared by every stage at different strengths.
+  const kolongRun = [
+    [-0.3, k.y + 0.008],
+    [lerp(geo.kolong.x0, geo.kolong.x1, 0.1), k.y],
+    [lerp(geo.kolong.x0, geo.kolong.x1, 0.5), k.y - 0.006],
+    [lerp(geo.kolong.x0, geo.kolong.x1, 0.9), k.y - 0.011],
+    [1.3, k.y - 0.015],
+  ];
 
   if (stage === 0) {
     // Masuk: angin menyapu kolong rumah panggung, sisanya melimpas di atas atap.
     return [
+      { pts: kolongRun, radius: 0.078, speed: 0.3 * k.speed, weight: 1.3 },
       {
         pts: [
-          [-0.3, k.y + 0.01],
-          [0.06, k.y],
-          [0.32, k.y - 0.004],
-          [0.6, k.y - 0.008],
-          [0.86, k.y - 0.012],
-          [1.3, k.y - 0.015],
-        ],
-        radius: 0.078,
-        speed: 0.3 * k.speed,
-        weight: 1.3,
-      },
-      {
-        pts: [
-          [-0.3, 0.35],
-          [0.02, 0.27],
-          [0.22, 0.16],
-          [0.42, 0.08],
-          [0.491, 0.056],
-          [0.62, 0.1],
-          [0.8, 0.21],
-          [1.02, 0.31],
-          [1.3, 0.37],
+          [-0.3, eaveY - 0.02],
+          [eaveL[0] - 0.08, eaveL[1] - 0.1],
+          [lerp(eaveL[0], ridge[0], 0.55), lerp(eaveL[1], ridge[1], 0.72)],
+          [ridge[0], ridge[1] - 0.012],
+          [lerp(ridge[0], eaveR[0], 0.45), lerp(ridge[1], eaveR[1], 0.66)],
+          [eaveR[0] + 0.08, eaveR[1] - 0.09],
+          [1.3, eaveY - 0.03],
         ],
         radius: 0.085,
         speed: 0.28,
@@ -93,10 +111,9 @@ function buildGuides(stage, floorHeight) {
       },
       {
         pts: [
-          [0.04, k.y + 0.03],
-          [0.26, k.y - 0.02],
-          [0.38, k.y - 0.08],
-          [0.45, 0.755],
+          [geo.kolong.x0 - 0.06, k.y + 0.028],
+          [lerp(geo.kolong.x0, geo.kolong.x1, 0.32), k.y - 0.02],
+          [lerp(geo.kolong.x0, geo.kolong.x1, 0.46), wy(1.06)],
         ],
         radius: 0.05,
         speed: 0.16 * k.speed,
@@ -106,18 +123,17 @@ function buildGuides(stage, floorHeight) {
   }
 
   if (stage === 1) {
-    // Silang: masuk jendela kiri, menembus ruang, keluar jendela sisi kanan.
+    // Silang: masuk bukaan sisi kiri, menembus ruang, keluar bukaan kanan.
     return [
       {
         pts: [
-          [-0.3, 0.512],
-          [0.16, 0.508],
-          [0.268, 0.505],
-          [0.4, 0.497],
-          [0.56, 0.502],
-          [0.731, 0.505],
-          [0.92, 0.509],
-          [1.3, 0.514],
+          [-0.3, openings[0].y + 0.008],
+          [wx(0.05), openings[0].y + 0.004],
+          [openings[0].x, openings[0].y],
+          [wx(0.5), openings[0].y - 0.008],
+          [openings[3].x, openings[3].y],
+          [wx(1.06), openings[3].y + 0.004],
+          [1.3, openings[3].y + 0.008],
         ],
         radius: 0.055,
         speed: 0.31,
@@ -125,35 +141,24 @@ function buildGuides(stage, floorHeight) {
       },
       {
         pts: [
-          [-0.3, 0.565],
-          [0.2, 0.55],
-          [0.374, 0.521],
-          [0.52, 0.529],
-          [0.74, 0.546],
-          [0.97, 0.558],
-          [1.3, 0.564],
+          [-0.3, wy(0.68)],
+          [wx(0.08), wy(0.62)],
+          [openings[1].x, openings[1].y + 0.014],
+          [openings[2].x, openings[2].y],
+          [wx(0.92), wy(0.6)],
+          [1.3, wy(0.66)],
         ],
         radius: 0.05,
         speed: 0.25,
         weight: 0.95,
       },
+      { pts: kolongRun, radius: 0.06, speed: 0.2 * k.speed, weight: 0.6 },
       {
         pts: [
-          [-0.3, k.y],
-          [0.24, k.y - 0.005],
-          [0.56, k.y - 0.01],
-          [1.3, k.y - 0.014],
-        ],
-        radius: 0.06,
-        speed: 0.2 * k.speed,
-        weight: 0.6,
-      },
-      {
-        pts: [
-          [0.3, 0.6],
-          [0.36, 0.548],
-          [0.46, 0.502],
-          [0.58, 0.474],
+          [wx(0.24), wy(0.88)],
+          [wx(0.36), wy(0.6)],
+          [wx(0.52), wy(0.38)],
+          [wx(0.66), wy(0.26)],
         ],
         radius: 0.048,
         speed: 0.12,
@@ -166,13 +171,13 @@ function buildGuides(stage, floorHeight) {
   return [
     {
       pts: [
-        [0.28, 0.61],
-        [0.33, 0.55],
-        [0.39, 0.44],
-        [0.45, 0.28],
-        [0.484, 0.13],
-        [0.495, 0.02],
-        [0.5, -0.22],
+        [wx(0.22), wy(0.92)],
+        [wx(0.3), wy(0.6)],
+        [wx(0.38), wy(0.2)],
+        [lerp(wx(0.42), ridge[0], 0.5), lerp(wall.y0, ridge[1], 0.55)],
+        [ridge[0] - 0.01, ridge[1] + 0.03],
+        [ridge[0], ridge[1] - 0.05],
+        [ridge[0] + 0.01, -0.22],
       ],
       radius: 0.07,
       speed: 0.3,
@@ -180,33 +185,23 @@ function buildGuides(stage, floorHeight) {
     },
     {
       pts: [
-        [0.7, 0.62],
-        [0.64, 0.52],
-        [0.57, 0.36],
-        [0.52, 0.18],
-        [0.508, 0.04],
-        [0.515, -0.22],
+        [wx(0.78), wy(0.94)],
+        [wx(0.7), wy(0.62)],
+        [wx(0.6), wy(0.22)],
+        [lerp(wx(0.56), ridge[0], 0.55), lerp(wall.y0, ridge[1], 0.6)],
+        [ridge[0] + 0.014, ridge[1] + 0.02],
+        [ridge[0] + 0.02, -0.22],
       ],
       radius: 0.065,
       speed: 0.27,
       weight: 1,
     },
+    { pts: kolongRun, radius: 0.06, speed: 0.18 * k.speed, weight: 0.5 },
     {
       pts: [
-        [-0.3, k.y],
-        [0.26, k.y - 0.006],
-        [0.62, k.y - 0.012],
-        [1.3, k.y - 0.016],
-      ],
-      radius: 0.06,
-      speed: 0.18 * k.speed,
-      weight: 0.5,
-    },
-    {
-      pts: [
-        [0.49, 0.03],
-        [0.54, -0.07],
-        [0.63, -0.22],
+        [ridge[0], ridge[1] - 0.03],
+        [ridge[0] + 0.05, ridge[1] - 0.13],
+        [ridge[0] + 0.14, -0.22],
       ],
       radius: 0.06,
       speed: 0.22,
@@ -288,9 +283,9 @@ function inTriangle(x, y, a, b, c) {
 
 // How much a particle is dimmed at this point: air behind the roof, walls or
 // floor reads as "inside the house" instead of floating in front of it.
-function occlusionAt(cssX, cssY, openingScale) {
-  for (let i = 0; i < OPENINGS.length; i += 1) {
-    const o = OPENINGS[i];
+function occlusionAt(cssX, cssY, openingScale, geo, openings) {
+  for (let i = 0; i < openings.length; i += 1) {
+    const o = openings[i];
     const hw = (o.w * openingScale) / 2;
     const hh = o.h / 2;
     if (cssX > o.x - hw && cssX < o.x + hw && cssY > o.y - hh && cssY < o.y + hh) {
@@ -298,26 +293,29 @@ function occlusionAt(cssX, cssY, openingScale) {
     }
   }
 
-  if (cssX > SLAB.x0 && cssX < SLAB.x1 && cssY > SLAB.y0 && cssY < SLAB.y1) {
+  const { wall, kolong: band } = geo;
+  // The deck slab sits between the body and the under-house void.
+  if (cssX > wall.x0 && cssX < wall.x1 && cssY > wall.y1 && cssY < band.y0) {
     return 0.24;
   }
 
-  if (cssX > WALL.x0 && cssX < WALL.x1 && cssY > WALL.y0 && cssY < WALL.y1) {
+  if (cssX > wall.x0 && cssX < wall.x1 && cssY > wall.y0 && cssY < wall.y1) {
     return 0.4;
   }
 
-  if (inTriangle(cssX, cssY, RIDGE, EAVE_L, EAVE_R)) {
+  if (inTriangle(cssX, cssY, geo.ridge, geo.eaveL, geo.eaveR)) {
     return 0.42;
   }
 
   return 1;
 }
 
-function bakeField(stage, openings, floorHeight) {
-  const guides = buildGuides(stage, floorHeight).map((guide) =>
+function bakeField(stage, openings, floorHeight, geo) {
+  const guides = buildGuides(stage, floorHeight, geo).map((guide) =>
     prepareGuide(guide, SPEED_SCALE[openings] ?? 1),
   );
   const openingScale = OPENING_SCALE[openings] ?? 1;
+  const openingRects = openingsOf(geo);
   const vx = new Float32Array(COLS * ROWS);
   const vy = new Float32Array(COLS * ROWS);
   const alpha = new Float32Array(COLS * ROWS);
@@ -354,7 +352,7 @@ function bakeField(stage, openings, floorHeight) {
         vy[index] = (sumY / sumW) * presence;
       }
 
-      alpha[index] = occlusionAt(x, y * ASPECT, openingScale);
+      alpha[index] = occlusionAt(x, y * ASPECT, openingScale, geo, openingRects);
     }
   }
 
@@ -575,8 +573,10 @@ export function createAirflowField() {
     return next;
   }
 
-  function configure(nextStage, openings, floorHeight) {
-    const nextSignature = `${nextStage}|${openings}|${floorHeight}`;
+  function configure(nextStage, openings, floorHeight, geo) {
+    // The geometry signature is already quantised by model3d, so this only
+    // changes when the silhouette has really moved.
+    const nextSignature = `${nextStage}|${openings}|${floorHeight}|${geo.signature ?? ""}`;
     if (nextSignature === signature) {
       return;
     }
@@ -584,7 +584,7 @@ export function createAirflowField() {
     signature = nextSignature;
     openingsSetting = openings;
     tint = STAGE_TINT[nextStage] || STAGE_TINT[0];
-    field = bakeField(nextStage, openings, floorHeight);
+    field = bakeField(nextStage, openings, floorHeight, geo);
     sample = createSampler(field);
     streamlines = traceStreamlines(field, sample);
     particles = buildParticles(targetCount(openings), true);
@@ -824,7 +824,12 @@ export function createAirflowField() {
     }
 
     window.clearTimeout(stopTimer);
-    configure(options.stage % STAGE_TINT.length, options.openings, options.floorHeight);
+    configure(
+      options.stage % STAGE_TINT.length,
+      options.openings,
+      options.floorHeight,
+      options.geometry ?? DEFAULT_GEOMETRY,
+    );
     canvas.classList.add("is-live");
 
     if (reduceMotion) {

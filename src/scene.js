@@ -1,11 +1,37 @@
 import { AppMode, AppPhase } from "./state.js";
 import { discoverHotspots } from "./hotspots.js";
-import { structureParts, getPartMotion } from "./structure.js";
+import { structureParts } from "./structure.js";
 import { climateHotspots } from "./thermal.js";
 import { createAirflowField } from "./airflow-field.js";
+import { createHouseModel } from "./model3d.js";
 
 export function createScene(mount, handlers) {
   const airflowField = createAirflowField();
+  let geometry = null;
+  let lastState = null;
+  let lastTranslator = null;
+
+  let modelReady = false;
+  let modelFailed = false;
+
+  const houseModel = createHouseModel({
+    onReady: () => {
+      modelReady = true;
+      if (lastState) render(lastState, lastTranslator);
+      handlers.onModelReady?.();
+    },
+    onError: (error) => {
+      modelFailed = true;
+      if (lastState) render(lastState, lastTranslator);
+      handlers.onModelError?.(error);
+    },
+    // The silhouette moved enough to matter, so re-register the airflow field
+    // against it without waiting for the next store update.
+    onGeometry: (next) => {
+      geometry = next;
+      if (lastState) syncAirflow(lastState);
+    },
+  });
 
   mount.addEventListener("click", (event) => {
     const sceneAction = event.target.closest("[data-scene-action]");
@@ -44,6 +70,8 @@ export function createScene(mount, handlers) {
       state.airflowPlaying || state.culturalLayer === "airflow" ? "airflow-on" : "",
       state.thermalEnabled || state.culturalLayer === "climate" ? "thermal-on" : "",
       state.targetLost ? "target-lost" : "",
+      modelReady ? "model-ready" : "",
+      modelFailed ? "model-failed" : "",
       state.guidedTour ||
       state.sheet ||
       state.selectedHotspot ||
@@ -58,7 +86,6 @@ export function createScene(mount, handlers) {
     mount.innerHTML = `
       <div class="ar-depth" aria-hidden="${isSceneVisible ? "false" : "true"}">
         <div class="tracking-plane"></div>
-        <div class="model-shadow"></div>
         ${renderHouse(state)}
         ${renderDiscoverHotspots(state, t)}
         ${renderClimateHotspots(state, t)}
@@ -67,17 +94,47 @@ export function createScene(mount, handlers) {
       </div>
     `;
 
-    // The canvas is kept alive across renders and re-parented into the freshly
-    // written markup, so particle state survives every state update.
+    // Both canvases are kept alive across renders and re-parented into the
+    // freshly written markup, so WebGL and particle state survive every update.
+    houseModel.sync(mount.querySelector(".model-stage"), {
+      visible: isSceneVisible,
+      explode: state.mode === AppMode.STRUCTURE ? state.explodedAmount : 0,
+      layer: state.culturalLayer,
+      thermal: state.thermalEnabled || state.culturalLayer === "climate",
+      holdStill: isAirflowVisible(state),
+    });
+
+    lastState = state;
+    lastTranslator = t;
+    syncAirflow(state, isSceneVisible);
+  }
+
+  function isAirflowVisible(state) {
+    return state.airflowPlaying || state.culturalLayer === "airflow";
+  }
+
+  function syncAirflow(state, sceneVisible) {
+    const visible =
+      (sceneVisible ??
+        (state.phase === AppPhase.EXPERIENCE ||
+          state.phase === AppPhase.COMPLETION ||
+          state.phase === AppPhase.SCANNING)) && isAirflowVisible(state);
+
     airflowField.sync(mount.querySelector(".airflow-field"), {
-      visible: isSceneVisible && (state.airflowPlaying || state.culturalLayer === "airflow"),
+      visible,
       stage: state.airflowStep,
       openings: state.labControls.openings,
       floorHeight: state.labControls.floorHeight,
+      geometry,
     });
   }
 
-  return { render, destroy: airflowField.destroy };
+  function destroy() {
+    airflowField.destroy();
+    houseModel.destroy();
+  }
+
+  return { render, destroy };
 }
 
 function renderHouse(state) {
@@ -85,44 +142,11 @@ function renderHouse(state) {
 
   return `
     <div class="house-model" style="--explode:${explode}">
+      <div class="model-shadow" aria-hidden="true"></div>
+      <div class="model-stage" aria-hidden="true"></div>
       <div class="xray-grid" aria-hidden="true"></div>
       <div class="shade-veil" aria-hidden="true"></div>
       <div class="thermal-overlay" aria-hidden="true"></div>
-      <div class="house-part roof" data-part="roof" style="${getPartMotion("roof", explode)}">
-        <span class="roof-plane roof-plane-a"></span>
-        <span class="roof-plane roof-plane-b"></span>
-        <span class="roof-ridge"></span>
-      </div>
-      <div class="house-part wall front-wall" data-part="frontWall" style="${getPartMotion(
-        "frontWall",
-        explode,
-      )}">
-        <span class="timber-line line-a"></span>
-        <span class="timber-line line-b"></span>
-        <span class="window window-a"></span>
-        <span class="window window-b"></span>
-        <span class="door"></span>
-      </div>
-      <div class="house-part wall side-walls" data-part="sideWalls" style="${getPartMotion(
-        "sideWalls",
-        explode,
-      )}">
-        <span class="timber-line line-c"></span>
-        <span class="window window-c"></span>
-      </div>
-      <div class="house-part floor" data-part="floor" style="${getPartMotion("floor", explode)}">
-        <span class="floor-beam beam-a"></span>
-        <span class="floor-beam beam-b"></span>
-      </div>
-      <div class="house-part foundation" data-part="foundation" style="${getPartMotion(
-        "foundation",
-        explode,
-      )}">
-        <span class="post post-a"></span>
-        <span class="post post-b"></span>
-        <span class="post post-c"></span>
-        <span class="post post-d"></span>
-      </div>
       <div class="airflow-field" aria-hidden="true"></div>
     </div>
   `;
@@ -139,7 +163,7 @@ function renderDiscoverHotspots(state, t) {
       const isSelected = state.selectedHotspot === hotspot.id;
       const callout = isSelected
         ? `
-          <div class="hotspot-callout" style="--x:${hotspot.x}%;--y:${hotspot.y}%">
+          <div class="hotspot-callout" data-anchor="${hotspot.anchor}" style="--x:${hotspot.x}%;--y:${hotspot.y}%">
             <button type="button" class="callout-close" data-scene-action="clear-focus" aria-label="Close">x</button>
             <span>${copy.eyebrow}</span>
             <strong>${copy.title}</strong>
@@ -155,6 +179,7 @@ function renderDiscoverHotspots(state, t) {
           type="button"
           class="hotspot ${isSelected ? "is-selected" : ""}"
           style="--x:${hotspot.x}%;--y:${hotspot.y}%"
+          data-anchor="${hotspot.anchor}"
           data-hotspot="${hotspot.id}"
           data-kind="discover"
           aria-label="${copy.title}"
@@ -182,6 +207,7 @@ function renderClimateHotspots(state, t) {
             state.selectedClimateHotspot === hotspot.id ? "is-selected" : ""
           }"
           style="--x:${hotspot.x}%;--y:${hotspot.y}%"
+          data-anchor="${hotspot.anchor}"
           data-hotspot="${hotspot.id}"
           data-kind="climate"
           aria-label="${copy.title}"
@@ -209,6 +235,7 @@ function renderStructureLabels(state, t) {
                 state.selectedStructurePart === part.id ? "is-selected" : ""
               }"
               style="--x:${part.x}%;--y:${part.y}%"
+              data-anchor="${part.anchor}"
               data-structure-part="${part.id}"
             >
               ${t(part.labelKey)}

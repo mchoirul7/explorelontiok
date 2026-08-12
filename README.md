@@ -16,12 +16,23 @@ Additional learning features:
 
 - X-Ray Cultural Layers: normal, architecture, airflow, climate, daily life, and local wisdom layers with a cinematic reveal sequence.
 - Cause & Effect Lab: openings, floor height, and roof shade controls that visibly affect airflow, floor elevation, and thermal/shade overlays.
-- Airflow Simulation: a canvas velocity field (`src/airflow-field.js`) that advects particles along the real house geometry — in under the raised floor, across through the window openings, then up and out of the ridge — with a distinct path, tint, and set of streamlines per stage.
+- 3D House Model: `assets/3d/rumahadat-web.glb` rendered with three.js (`src/model3d.js`). The glTF nodes are unnamed, so parts are grouped by height band (roof / body / deck / stilts); those groups drive the exploded structure view, the X-ray layer tints, and the anchors that every hotspot and label is pinned to. Drag to orbit; it idles into a slow spin and holds still during the airflow lesson.
+- Airflow Simulation: a canvas velocity field (`src/airflow-field.js`) that advects particles along the house silhouette measured from the 3D model each frame — in under the raised floor, across through the openings, then up and out of the ridge — with a distinct path, tint, and set of streamlines per stage.
 - Standalone Quiz: visual questions with timer, score, A-D choices, true/false, and multi-answer rounds outside the AR experience.
 - Share Sheet: WhatsApp, Facebook, X, Telegram, native device sharing, and copy-link actions with social preview metadata.
 - Guided Reflection Ending: an elegant learning summary covering discovery, architecture, science, and cultural wisdom.
 
 Social thumbnails use Open Graph and Twitter metadata in `index.html`. WhatsApp/Facebook previews require absolute HTTPS URLs, so the tags point at `https://explorelontiok.vercel.app/` and at `assets/og-image.jpg` (1200x630, ~110 KB — the full-size hero PNG is too large for WhatsApp to fetch). Update those absolute URLs if the site moves to another domain.
+
+## 3D Asset
+
+`assets/3d/rumahadat.glb` is the source model (6.66 MB — a 2048x2048 RGBA PNG atlas is 97% of it).
+`assets/3d/rumahadat-web.glb` is what the app loads: identical geometry, the two textures re-encoded
+as WebP via `EXT_texture_webp`, 0.79 MB. Regenerate it after replacing the source model; the atlas
+has real alpha, so JPEG is not an option.
+
+three.js is vendored under `src/vendor/three` (v0.180.0) and resolved through the import map in
+`index.html`, so the site has no third-party runtime dependency.
 
 ## AR Target
 
