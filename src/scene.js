@@ -2,9 +2,11 @@ import { AppMode, AppPhase } from "./state.js";
 import { discoverHotspots } from "./hotspots.js";
 import { structureParts, getPartMotion } from "./structure.js";
 import { climateHotspots } from "./thermal.js";
-import { renderAirParticles } from "./airflow.js";
+import { createAirflowField } from "./airflow-field.js";
 
 export function createScene(mount, handlers) {
+  const airflowField = createAirflowField();
+
   mount.addEventListener("click", (event) => {
     const sceneAction = event.target.closest("[data-scene-action]");
     if (sceneAction) {
@@ -64,19 +66,22 @@ export function createScene(mount, handlers) {
         ${renderCulturalAnnotations(state, t)}
       </div>
     `;
+
+    // The canvas is kept alive across renders and re-parented into the freshly
+    // written markup, so particle state survives every state update.
+    airflowField.sync(mount.querySelector(".airflow-field"), {
+      visible: isSceneVisible && (state.airflowPlaying || state.culturalLayer === "airflow"),
+      stage: state.airflowStep,
+      openings: state.labControls.openings,
+      floorHeight: state.labControls.floorHeight,
+    });
   }
 
-  return { render };
+  return { render, destroy: airflowField.destroy };
 }
 
 function renderHouse(state) {
   const explode = state.mode === AppMode.STRUCTURE ? state.explodedAmount : 0;
-  const airflowVisible = state.airflowPlaying || state.culturalLayer === "airflow";
-  const particleCount = {
-    low: 12,
-    medium: 24,
-    wide: 38,
-  }[state.labControls.openings];
 
   return `
     <div class="house-model" style="--explode:${explode}">
@@ -118,7 +123,7 @@ function renderHouse(state) {
         <span class="post post-c"></span>
         <span class="post post-d"></span>
       </div>
-      <div class="airflow-field" aria-hidden="true">${airflowVisible ? renderAirParticles(particleCount) : ""}</div>
+      <div class="airflow-field" aria-hidden="true"></div>
     </div>
   `;
 }

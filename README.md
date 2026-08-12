@@ -16,11 +16,12 @@ Additional learning features:
 
 - X-Ray Cultural Layers: normal, architecture, airflow, climate, daily life, and local wisdom layers with a cinematic reveal sequence.
 - Cause & Effect Lab: openings, floor height, and roof shade controls that visibly affect airflow, floor elevation, and thermal/shade overlays.
+- Airflow Simulation: a canvas velocity field (`src/airflow-field.js`) that advects particles along the real house geometry — in under the raised floor, across through the window openings, then up and out of the ridge — with a distinct path, tint, and set of streamlines per stage.
 - Standalone Quiz: visual questions with timer, score, A-D choices, true/false, and multi-answer rounds outside the AR experience.
 - Share Sheet: WhatsApp, Facebook, X, Telegram, native device sharing, and copy-link actions with social preview metadata.
 - Guided Reflection Ending: an elegant learning summary covering discovery, architecture, science, and cultural wisdom.
 
-Social thumbnails use Open Graph and Twitter metadata in `index.html`. WhatsApp/Facebook previews require the page and `assets/rumah-lontiok-hero.png` to be available from a public HTTPS URL.
+Social thumbnails use Open Graph and Twitter metadata in `index.html`. WhatsApp/Facebook previews require absolute HTTPS URLs, so the tags point at `https://explorelontiok.vercel.app/` and at `assets/og-image.jpg` (1200x630, ~110 KB — the full-size hero PNG is too large for WhatsApp to fetch). Update those absolute URLs if the site moves to another domain.
 
 ## AR Target
 

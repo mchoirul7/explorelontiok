@@ -3084,35 +3084,22 @@ svg {
 
 .airflow-field {
   position: absolute;
-  inset: 24% 16% 30%;
+  inset: 0;
   z-index: 6;
   pointer-events: none;
 }
 
-.air-particle {
+.airflow-canvas {
   position: absolute;
-  left: 6%;
-  top: 54%;
-  width: var(--size);
-  height: var(--size);
-  border-radius: 50%;
-  background: rgba(121, 216, 226, 0.88);
-  box-shadow: 0 0 14px rgba(121, 216, 226, 0.46);
+  inset: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
-  animation-duration: 3.2s;
-  animation-delay: var(--delay);
-  animation-timing-function: var(--ease-in-out);
-  animation-iteration-count: infinite;
+  transition: opacity 480ms var(--ease-out);
 }
 
-.openings-low .air-particle {
-  opacity: 0;
-  animation-duration: 4.2s;
-}
-
-.openings-wide .air-particle {
-  animation-duration: 2.55s;
-  box-shadow: 0 0 18px rgba(121, 216, 226, 0.6);
+.airflow-canvas.is-live {
+  opacity: 1;
 }
 
 .cultural-annotations span {
@@ -3176,20 +3163,6 @@ svg {
   color: rgba(244, 239, 228, 0.64);
   font-size: 0.84rem;
   line-height: 1.4;
-}
-
-.path-0 {
-  animation-name: flowA;
-}
-
-.path-1 {
-  top: 42%;
-  animation-name: flowB;
-}
-
-.path-2 {
-  top: 62%;
-  animation-name: flowC;
 }
 
 @keyframes revealStagger {
@@ -3365,48 +3338,6 @@ svg {
   50% {
     opacity: 0.8;
     transform: scale(1.2);
-  }
-}
-
-@keyframes flowA {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 0, 0) scale(0.65);
-  }
-  18% {
-    opacity: 0.8;
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(48vmin, -3vmin, 0) scale(1);
-  }
-}
-
-@keyframes flowB {
-  0% {
-    opacity: 0;
-    transform: translate3d(2vmin, 1vmin, 0) scale(0.65);
-  }
-  18% {
-    opacity: 0.72;
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(42vmin, 6vmin, 0) scale(1);
-  }
-}
-
-@keyframes flowC {
-  0% {
-    opacity: 0;
-    transform: translate3d(4vmin, -1vmin, 0) scale(0.65);
-  }
-  18% {
-    opacity: 0.68;
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(45vmin, -9vmin, 0) scale(1);
   }
 }
 

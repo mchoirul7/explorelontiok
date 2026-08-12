@@ -711,7 +711,7 @@ function startAirflow() {
     setState((state) => ({
       airflowStep: (state.airflowStep + 1) % 3,
     }));
-  }, 3300);
+  }, 5200);
 }
 
 function stopAirflow() {
