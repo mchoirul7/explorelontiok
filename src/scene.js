@@ -33,11 +33,22 @@ export function createScene(mount, handlers) {
     mount.className = [
       "scene-mount",
       `mode-${state.mode}`,
+      `layer-${state.culturalLayer}`,
+      `openings-${state.labControls.openings}`,
+      `floor-${state.labControls.floorHeight}`,
+      `shade-${state.labControls.roofShade}`,
       isSceneVisible ? "is-active" : "is-muted",
       state.targetFound ? "target-found" : "target-searching",
-      state.airflowPlaying ? "airflow-on" : "",
-      state.thermalEnabled ? "thermal-on" : "",
+      state.airflowPlaying || state.culturalLayer === "airflow" ? "airflow-on" : "",
+      state.thermalEnabled || state.culturalLayer === "climate" ? "thermal-on" : "",
       state.targetLost ? "target-lost" : "",
+      state.guidedTour ||
+      state.sheet ||
+      state.selectedHotspot ||
+      state.selectedClimateHotspot ||
+      state.selectedStructurePart
+        ? "is-focused"
+        : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -50,6 +61,7 @@ export function createScene(mount, handlers) {
         ${renderDiscoverHotspots(state, t)}
         ${renderClimateHotspots(state, t)}
         ${renderStructureLabels(state, t)}
+        ${renderCulturalAnnotations(state, t)}
       </div>
     `;
   }
@@ -59,9 +71,17 @@ export function createScene(mount, handlers) {
 
 function renderHouse(state) {
   const explode = state.mode === AppMode.STRUCTURE ? state.explodedAmount : 0;
+  const airflowVisible = state.airflowPlaying || state.culturalLayer === "airflow";
+  const particleCount = {
+    low: 12,
+    medium: 24,
+    wide: 38,
+  }[state.labControls.openings];
 
   return `
     <div class="house-model" style="--explode:${explode}">
+      <div class="xray-grid" aria-hidden="true"></div>
+      <div class="shade-veil" aria-hidden="true"></div>
       <div class="thermal-overlay" aria-hidden="true"></div>
       <div class="house-part roof" data-part="roof" style="${getPartMotion("roof", explode)}">
         <span class="roof-plane roof-plane-a"></span>
@@ -98,13 +118,13 @@ function renderHouse(state) {
         <span class="post post-c"></span>
         <span class="post post-d"></span>
       </div>
-      <div class="airflow-field" aria-hidden="true">${state.airflowPlaying ? renderAirParticles() : ""}</div>
+      <div class="airflow-field" aria-hidden="true">${airflowVisible ? renderAirParticles(particleCount) : ""}</div>
     </div>
   `;
 }
 
 function renderDiscoverHotspots(state, t) {
-  if (state.mode !== AppMode.DISCOVER || !state.targetFound) {
+  if (state.guidedTour || state.mode !== AppMode.DISCOVER || !state.targetFound) {
     return "";
   }
 
@@ -115,6 +135,7 @@ function renderDiscoverHotspots(state, t) {
       const callout = isSelected
         ? `
           <div class="hotspot-callout" style="--x:${hotspot.x}%;--y:${hotspot.y}%">
+            <button type="button" class="callout-close" data-scene-action="clear-focus" aria-label="Close">x</button>
             <span>${copy.eyebrow}</span>
             <strong>${copy.title}</strong>
             <button type="button" data-scene-action="hotspot-learn" data-value="${hotspot.id}">
@@ -142,7 +163,7 @@ function renderDiscoverHotspots(state, t) {
 }
 
 function renderClimateHotspots(state, t) {
-  if (state.mode !== AppMode.CLIMATE || !state.targetFound) {
+  if (state.guidedTour || state.mode !== AppMode.CLIMATE || !state.targetFound) {
     return "";
   }
 
@@ -168,7 +189,7 @@ function renderClimateHotspots(state, t) {
 }
 
 function renderStructureLabels(state, t) {
-  if (state.mode !== AppMode.STRUCTURE || !state.targetFound || state.explodedAmount < 0.18) {
+  if (state.guidedTour || state.mode !== AppMode.STRUCTURE || !state.targetFound || state.explodedAmount < 0.18) {
     return "";
   }
 
@@ -187,6 +208,33 @@ function renderStructureLabels(state, t) {
             >
               ${t(part.labelKey)}
             </button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderCulturalAnnotations(state, t) {
+  const annotations = t(`xray.annotations.${state.culturalLayer}`);
+  if (!Array.isArray(annotations) || !state.targetFound) {
+    return "";
+  }
+
+  const positions = [
+    { x: 38, y: 24 },
+    { x: 61, y: 47 },
+    { x: 45, y: 72 },
+  ];
+
+  return `
+    <div class="cultural-annotations">
+      ${annotations
+        .map(
+          (label, index) => `
+            <span style="--x:${positions[index].x}%;--y:${positions[index].y}%">
+              ${label}
+            </span>
           `,
         )
         .join("")}

@@ -65,7 +65,13 @@ export function createAudioController() {
 
     if (utteranceSupported) {
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = language === "id" ? "id-ID" : "en-US";
+      const utteranceLanguages = {
+        en: "en-US",
+        id: "id-ID",
+        ko: "ko-KR",
+        "zh-TW": "zh-TW",
+      };
+      utterance.lang = utteranceLanguages[language] || "en-US";
       utterance.rate = 0.88;
       utterance.pitch = 0.92;
       window.speechSynthesis.cancel();

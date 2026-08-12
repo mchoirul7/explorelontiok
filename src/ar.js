@@ -21,12 +21,15 @@ export async function startCamera(videoElement) {
   return cameraStream;
 }
 
-export function startTargetScanner({ onFound }) {
+export function startTargetScanner({ onFound, mode = "simulated" }) {
   stopTargetScanner();
+  // Real target mode is prepared for MindAR integration. Replace this timer with
+  // targetFound callbacks from the compiled assets/targets/rumah-lontiok.mind.
+  const delay = mode === "real" ? 5200 : 2800;
   scanTimer = window.setTimeout(() => {
     scanTimer = null;
     onFound?.();
-  }, 2800);
+  }, delay);
 }
 
 export function stopTargetScanner() {

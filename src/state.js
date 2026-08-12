@@ -7,6 +7,9 @@ export const AppMode = Object.freeze({
 
 export const AppPhase = Object.freeze({
   OPENING: "opening",
+  PATHS: "paths",
+  LAB: "lab",
+  QUIZ: "quiz",
   LOADING: "loading",
   ONBOARDING: "onboarding",
   SCANNING: "scanning",
@@ -18,6 +21,27 @@ export const AppPhase = Object.freeze({
 export const initialState = Object.freeze({
   phase: AppPhase.OPENING,
   mode: AppMode.DISCOVER,
+  learningPath: null,
+  learningMission: "air",
+  labAnswer: null,
+  labSolved: false,
+  quizPlan: [],
+  quizIndex: 0,
+  quizAnswers: {},
+  quizSubmitted: false,
+  quizTimedOut: false,
+  quizCompleted: false,
+  quizTimeLeft: 0,
+  targetMode: "simulated",
+  labControls: {
+    openings: "medium",
+    floorHeight: "raised",
+    roofShade: "deep",
+  },
+  culturalLayer: "normal",
+  layerPanelOpen: false,
+  causeEffectOpen: false,
+  discovered: [],
   targetFound: false,
   targetLost: false,
   targetConfirmation: false,
@@ -36,6 +60,9 @@ export const initialState = Object.freeze({
   audioEnabled: true,
   ambientReady: false,
   moreOpen: false,
+  languageMenuOpen: false,
+  shareOpen: false,
+  shareCopied: false,
   guidedTour: false,
   guidedStep: 0,
   narration: {
@@ -77,6 +104,10 @@ export function subscribe(listener) {
 function cloneState(source) {
   return {
     ...source,
+    labControls: { ...source.labControls },
+    quizPlan: [...source.quizPlan],
+    quizAnswers: { ...source.quizAnswers },
+    discovered: [...source.discovered],
     narration: { ...source.narration },
   };
 }
